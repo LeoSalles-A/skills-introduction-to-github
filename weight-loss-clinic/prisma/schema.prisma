@@ -1,0 +1,329 @@
+// Prisma Schema for Weight Loss Clinic Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Patient {
+  id                String              @id @default(cuid())
+  name              String
+  email             String              @unique
+  phone             String
+  cpf               String              @unique
+  dateOfBirth       DateTime
+  gender            String
+
+  // Address
+  street            String
+  number            String
+  complement        String?
+  neighborhood      String
+  city              String
+  state             String
+  zipCode           String
+
+  // Physical measurements
+  currentWeight     Float
+  targetWeight      Float
+  height            Float
+  bmi               Float
+
+  // Medical History (JSON)
+  allergies         String[]
+  chronicDiseases   String[]
+  medications       String[]
+  previousSurgeries String[]
+  familyHistory     String[]
+  smokingStatus     String
+  alcoholConsumption String
+
+  // Relationships
+  treatmentPlans    TreatmentPlan[]
+  appointments      Appointment[]
+  labResults        LabResult[]
+  driveThruOrders   DriveThruOrder[]
+  chatSessions      AIChatSession[]
+  progressRecords   TreatmentProgress[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([email])
+  @@index([cpf])
+}
+
+model TreatmentPlan {
+  id                String              @id @default(cuid())
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+
+  startDate         DateTime
+  endDate           DateTime?
+  status            String              // active, completed, suspended, cancelled
+
+  // Nutritional Plan (JSON)
+  calories          Int?
+  proteinGrams      Float?
+  carbsGrams        Float?
+  fatsGrams         Float?
+  mealPlan          String?
+  dietRestrictions  String[]
+  supplements       String[]
+  nutritionistId    String?
+
+  // Psychological Support
+  psychologistId    String?
+  psychGoals        String[]
+
+  treatments        Treatment[]
+  progress          TreatmentProgress[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model Treatment {
+  id                String              @id @default(cuid())
+  planId            String
+  plan              TreatmentPlan       @relation(fields: [planId], references: [id])
+
+  type              String              // TreatmentType enum
+
+  // Medication details
+  medicationName    String?
+  activeIngredient  String?
+  concentration     String?
+  medicationForm    String?             // injection, oral, iv, topical
+  manufacturer      String?
+
+  dosage            String?
+  frequency         String
+  duration          String
+  instructions      String
+
+  startDate         DateTime
+  endDate           DateTime?
+  prescribedBy      String
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([planId])
+  @@index([type])
+}
+
+model TreatmentProgress {
+  id                String              @id @default(cuid())
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+  planId            String?
+  plan              TreatmentPlan?      @relation(fields: [planId], references: [id])
+
+  date              DateTime
+  weight            Float
+  bmi               Float
+
+  // Measurements (optional)
+  waist             Float?
+  hip               Float?
+  chest             Float?
+
+  notes             String?
+  photos            String[]            // URLs to photos
+
+  createdAt         DateTime            @default(now())
+
+  @@index([patientId])
+  @@index([planId])
+  @@index([date])
+}
+
+model LabResult {
+  id                String              @id @default(cuid())
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+
+  testDate          DateTime
+  results           Json                // Array of LabTest objects
+
+  // AI Analysis
+  aiSummary         String?
+  aiAbnormalities   String[]
+  aiRecommendations String[]
+  aiRiskLevel       String?             // low, medium, high
+  aiSuggestedTreatments String[]
+  aiAnalyzedAt      DateTime?
+
+  // Human Review
+  reviewedBy        String?
+  reviewDate        DateTime?
+  reviewNotes       String?
+
+  status            String              // pending, analyzed, reviewed
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([patientId])
+  @@index([testDate])
+  @@index([status])
+}
+
+model Resource {
+  id                String              @id @default(cuid())
+  type              String              // medication_box, apartment, endoscopy_room, etc.
+  name              String
+  number            Int
+  isActive          Boolean             @default(true)
+
+  equipment         String[]
+  capacity          Int?
+  amenities         String[]
+  specialty         String?
+
+  appointments      Appointment[]
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([type, number])
+  @@index([type])
+  @@index([isActive])
+}
+
+model Appointment {
+  id                String              @id @default(cuid())
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+
+  resourceId        String
+  resource          Resource            @relation(fields: [resourceId], references: [id])
+  resourceType      String
+
+  treatmentType     String              // TreatmentType enum
+
+  scheduledDate     DateTime
+  scheduledTime     String
+  duration          Int                 // minutes
+
+  status            String              // scheduled, confirmed, in_progress, completed, cancelled, no_show
+
+  // Staff assignments (JSON)
+  staffAssignments  Json                // Array of StaffAssignment objects
+
+  notes             String?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([patientId])
+  @@index([resourceId])
+  @@index([scheduledDate])
+  @@index([status])
+}
+
+model DriveThruOrder {
+  id                String              @id @default(cuid())
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+
+  type              String              // prescription, exam_order, both
+
+  prescriptions     Json?               // Array of Prescription objects
+  examOrders        Json?               // Array of ExamOrder objects
+
+  status            String              // pending, ready, picked_up, cancelled
+
+  scheduledPickup   DateTime?
+  actualPickup      DateTime?
+  parkingSpot       String?
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([patientId])
+  @@index([status])
+  @@index([scheduledPickup])
+}
+
+model Staff {
+  id                String              @id @default(cuid())
+  name              String
+  email             String              @unique
+  phone             String
+  role              String              // doctor, nurse, nutritionist, psychologist, etc.
+
+  specialties       String[]
+  license           String
+
+  // Availability (JSON)
+  availability      Json                // WeeklyAvailability object
+
+  isActive          Boolean             @default(true)
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+}
+
+model InventoryItem {
+  id                String              @id @default(cuid())
+  name              String
+  category          String              // medication, supply, equipment
+  quantity          Int
+  unit              String
+  minimumStock      Int
+  expirationDate    DateTime?
+
+  supplier          String
+  costPerUnit       Float
+  location          String
+
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([category])
+  @@index([expirationDate])
+}
+
+model AIChatSession {
+  id                String              @id @default(cuid())
+  patientId         String
+  patient           Patient             @relation(fields: [patientId], references: [id])
+
+  startTime         DateTime            @default(now())
+  endTime           DateTime?
+
+  messages          ChatMessage[]
+
+  summary           String?
+
+  @@index([patientId])
+  @@index([startTime])
+}
+
+model ChatMessage {
+  id                String              @id @default(cuid())
+  sessionId         String
+  session           AIChatSession       @relation(fields: [sessionId], references: [id])
+
+  role              String              // patient, ai, staff
+  content           String
+  context           String?             // nutritional, psychological, medical, general
+
+  timestamp         DateTime            @default(now())
+
+  @@index([sessionId])
+  @@index([timestamp])
+}
